@@ -45,6 +45,9 @@
  * ---------------
  *
  * $Log$
+ * Revision 1.1.1.1  2007/04/23 21:49:43  cjmueller
+ * initial import into CVS
+ *
  */
 
 #include <stdlib.h>
@@ -231,7 +234,7 @@ static void daemonize(void)
     _exit(0);
   }
 
-  /* fork #2: detach from terminal and fork again so we never can regain
+  /* fork #2: detach from terminal and fork again so we can never regain
    * access to the terminal */
   setsid();
   if ((i = fork()) < 0) {
@@ -338,9 +341,9 @@ static void log_spinup(DISKSTATS *ds)
             (long) time(NULL) - (long) ds->spindown);
 
     /* Sync to make sure writing to the logfile won't cause another
-     * spinup in 30 seconds. Since there's already some I/O which
-     * caused the spin-up and we don't want to cause even more I/O,
-     * wait some time before doing this.
+     * spinup in 30 seconds (or whatever bdflush uses as flush interval).
+     * Since there's already some I/O which caused the spin-up and we don't
+     * want to cause even more I/O, wait some time before doing this.
      */
     fclose(fp);
     sleep(3);
