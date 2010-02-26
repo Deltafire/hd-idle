@@ -45,6 +45,21 @@
  * ---------------
  *
  * $Log$
+ * Revision 1.3  2009/11/18 20:53:17  cjmueller
+ * Features
+ * - New parameter "-a" to allow selecting idle timeouts for individual disks;
+ *   compatibility to previous releases is maintained by having an implicit
+ *   default which matches all SCSI disks
+ *
+ * Bugs
+ * - Changed comparison operator for idle periods from '>' to '>=' to prevent
+ *   adding one polling interval to idle time
+ * - Changed sleep time before calling sync after updating the log file to 1s
+ *   (from 3s) to accumulate fewer dirty blocks before synching. It's still
+ *   a compromize but the log file is for debugging purposes, anyway. A test
+ *   with fsync() was unsuccessful because the next bdflush-initiated sync
+ *   still caused spin-ups.
+ *
  * Revision 1.2  2007/04/23 22:14:27  cjmueller
  * Bug fixes
  * - Comment changes; no functionality changes...
@@ -98,6 +113,7 @@ static void        daemonize       (void);
 static DISKSTATS  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
+static char       *disk_name       (char *name);
 
 /* global/static variables */
 IDLE_TIME *it_root;
@@ -139,7 +155,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "out of memory\n");
         return(2);
       }
-      it->name = optarg;
+      it->name = disk_name(optarg);
       it->idle_time = DEFAULT_IDLE_TIME;
       it->next = it_root;
       it_root = it;
@@ -239,7 +255,7 @@ int main(int argc, char *argv[])
            * arguments)
            */
           for (it = it_root; it != NULL; it = it->next) {
-            if (it->name == NULL || strstr(ds->name, it->name) != NULL) {
+            if (it->name == NULL || !strcmp(ds->name, it->name)) {
               ds->idle_time = it->idle_time;
               break;
             }
@@ -406,4 +422,62 @@ static void log_spinup(DISKSTATS *ds)
     sleep(1);
     sync();
   }
+}
+
+/* Resolve disk names specified as "/dev/disk/by-xxx" or some other symlink.
+ * Please note that this function is only called during command line parsing
+ * and hd-idle per se does not support dynamic disk additions or removals at
+ * runtime.
+ *
+ * This might change in the future but would require some fiddling to avoid
+ * needless overhead -- after all, this was designed to run on tiny embedded
+ * devices, too.
+ */
+static char *disk_name(char *path)
+{
+  ssize_t len;
+  char buf[256];
+  char *s;
+
+  if (*path != '/') {
+    /* just a disk name without /dev prefix */
+    return(path);
+  }
+
+  if ((len = readlink(path, buf, sizeof(buf) - 1)) <= 0) {
+    if (errno != EINVAL) {
+      /* couldn't resolve disk name */
+      return(path);
+    }
+
+    /* 'path' is not a symlink */
+    strncpy(buf, path, sizeof(buf) - 1);
+    buf[sizeof(buf)-1] = '\0';
+    len = strlen(buf);
+  }
+  buf[len] = '\0';
+
+  /* remove partition numbers, if any */
+  for (s = buf + strlen(buf) - 1; s >= buf && isdigit(*s); s--) {
+    *s = '\0';
+  }
+
+  /* Extract basename of the disk in /dev. Note that this assumes that the
+   * final target of the symlink (if any) resolves to /dev/sd*
+   */
+  if ((s = strrchr(buf, '/')) != NULL) {
+    s++;
+  } else {
+    s = buf;
+  }
+
+  if ((s = strdup(s)) == NULL) {
+    fprintf(stderr, "out of memory");
+    exit(2);
+  }
+
+  if (debug) {
+    printf("using %s for %s\n", s, path);
+  }
+  return(s);
 }
