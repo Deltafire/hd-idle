@@ -45,6 +45,24 @@
  * ---------------
  *
  * $Log$
+ * Revision 1.4  2010/02/26 14:03:44  cjmueller
+ * Version 1.01
+ * ------------
+ *
+ * Features
+ * - The parameter "-a" now also supports symlinks for disk names. Thus, disks
+ *   can be specified using something like /dev/disk/by-uuid/... Use "-d" to
+ *   verify that the resulting disk name is what you want.
+ *
+ *   Please note that disk names are resolved to device nodes at startup. Also,
+ *   since many entries in /dev/disk/by-xxx are actually partitions, partition
+ *   numbers are automatically removed from the resulting device node.
+ *
+ * Bugs
+ * - Not really a bug, but the disk name comparison used strstr which is a bit
+ *   useless because only disks starting with "sd" and a single letter after
+ *   that are currently considered. Replaced the comparison with strcmp()
+ *
  * Revision 1.3  2009/11/18 20:53:17  cjmueller
  * Features
  * - New parameter "-a" to allow selecting idle timeouts for individual disks;
@@ -76,6 +94,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -114,6 +133,8 @@ static DISKSTATS  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
 static char       *disk_name       (char *name);
+static void        phex            (const void *p, int len,
+                                    const char *fmt, ...);
 
 /* global/static variables */
 IDLE_TIME *it_root;
@@ -384,6 +405,9 @@ static void spindown_disk(const char *name)
   } else if (io_hdr.masked_status != 0) {
     fprintf(stderr, "error: SCSI command failed with status 0x%02x\n",
             io_hdr.masked_status);
+    if (io_hdr.masked_status == CHECK_CONDITION) {
+      phex(sense_buf, io_hdr.sb_len_wr, "sense buffer:\n");
+    }
   }
 
   close(fd);
@@ -481,3 +505,42 @@ static char *disk_name(char *path)
   }
   return(s);
 }
+
+/* print hex dump to stderr (e.g. sense buffers) */
+static void phex(const void *p, int len, const char *fmt, ...)
+{
+  va_list va;
+  const unsigned char *buf = p;
+  int pos = 0;
+  int i;
+
+  /* print header */
+  va_start(va, fmt);
+  vfprintf(stderr, fmt, va);
+
+  /* print hex block */
+  while (len > 0) {
+    fprintf(stderr, "%08x ", pos);
+
+    /* print hex block */
+    for (i = 0; i < 16; i++) {
+      if (i < len) {
+        fprintf(stderr, "%c%02x", ((i == 8) ? '-' : ' '), buf[i]);
+      } else {
+        fprintf(stderr, "   ");
+      }
+    }
+
+    /* print ASCII block */
+    fprintf(stderr, "   ");
+    for (i = 0; i < ((len > 16) ? 16 : len); i++) {
+      fprintf(stderr, "%c", (buf[i] >= 32 && buf[i] < 128) ? buf[i] : '.');
+    }
+    fprintf(stderr, "\n");
+
+    pos += 16;
+    buf += 16;
+    len -= 16;
+  }
+}
+
