@@ -45,6 +45,15 @@
  * ---------------
  *
  * $Log$
+ * Revision 1.5  2010/11/06 15:30:04  cjmueller
+ * Version 1.02
+ * ------------
+ *
+ * Features
+ * - In case the SCSI stop unit command fails with "check condition", print a
+ *   hex dump of the sense buffer to stderr. This is supposed to help
+ *   debugging.
+ *
  * Revision 1.4  2010/02/26 14:03:44  cjmueller
  * Version 1.01
  * ------------
@@ -253,7 +262,7 @@ int main(int argc, char *argv[])
           continue;
         }
 
-        dprintf("probing %s: reads: %d, writes: %d\n", tmp.name, tmp.reads, tmp.writes);
+        dprintf("probing %s: reads: %u, writes: %u\n", tmp.name, tmp.reads, tmp.writes);
 
         /* get previous statistics for this disk */
         ds = get_diskstats(tmp.name);
