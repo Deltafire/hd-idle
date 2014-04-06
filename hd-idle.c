@@ -45,6 +45,15 @@
  * ---------------
  *
  * $Log$
+ * Revision 1.6  2010/12/05 19:25:51  cjmueller
+ * Version 1.03
+ * ------------
+ *
+ * Bugs
+ * - Use %u in dprintf() when reporting number of reads and writes (the
+ *   corresponding variable is an unsigned int).
+ * - Fix example in README where the parameter "-a" was written as "-n".
+ *
  * Revision 1.5  2010/11/06 15:30:04  cjmueller
  * Version 1.02
  * ------------
@@ -253,12 +262,15 @@ int main(int argc, char *argv[])
                  tmp.name, &tmp.reads, &tmp.writes) == 3) {
         DISKSTATS *ds;
         time_t now = time(NULL);
+        const char *s;
 
-        /* make sure this is a SCSI disk (sd[a-z]) */
-        if (tmp.name[0] != 's' ||
-            tmp.name[1] != 'd' ||
-            !isalpha(tmp.name[2]) ||
-            tmp.name[3] != '\0') {
+        /* make sure this is a SCSI disk (sd[a-z]+) without partition number */
+        if (tmp.name[0] != 's' || tmp.name[1] != 'd') {
+          continue;
+        }
+        for (s = tmp.name + 2; isalpha(*s); s++);
+        if (*s != '\0') {
+          /* ignore disk partitions */ 
           continue;
         }
 
