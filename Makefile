@@ -43,8 +43,9 @@ clean:
 	rm -f $(OBJS) $(TARGET)
 
 install: $(TARGET)
-	install -D -g root -o root $(TARGET) $(TARGET_DIR)/sbin/$(TARGET)
-	install -D -g root -o root $(TARGET).1 $(TARGET_DIR)/share/man/man1/$(TARGET).1
+	install -D $(TARGET) $(TARGET_DIR)/sbin/$(TARGET)
+	install -d $(TARGET_DIR)/share/man/man1/
+	install -p -m 644 $(TARGET).1 $(TARGET_DIR)/share/man/man1/$(TARGET).1
 
 hd-idle.o:     hd-idle.c
 

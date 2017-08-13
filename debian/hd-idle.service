@@ -1,0 +1,11 @@
+[Unit]
+Description=Spin down idle hard disks
+Documentation=man:hd-idle(1)
+
+[Service]
+Type=forking
+EnvironmentFile=-/etc/default/hd-idle
+ExecStart=/usr/sbin/hd-idle $HD_IDLE_OPTS
+
+[Install]
+WantedBy=multi-user.target
