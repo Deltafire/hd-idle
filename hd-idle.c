@@ -63,6 +63,8 @@ static void        daemonize       (void);
 static DISKSTATS  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
+static void        log_remonitor   ();
+static void        log_mondisk     (DISKSTATS *ds);
 static char       *disk_name       (char *name);
 static void        phex            (const void *p, int len,
                                     const char *fmt, ...);
@@ -80,7 +82,10 @@ int main(int argc, char *argv[])
   int have_logfile = 0;
   int min_idle_time;
   int sleep_time;
+  int skew_time; 
   int opt;
+  time_t now;
+  time_t lastnow;
 
   /* create default idle-time parameter entry */
   if ((it = malloc(sizeof(*it))) == NULL) {
@@ -152,12 +157,17 @@ int main(int argc, char *argv[])
     sleep_time = 1;
   }
 
+  /* set skew time between scans as a multiple of sleep_time */
+  skew_time = sleep_time * 3;
+
   /* daemonize unless we're running in debug mode */
   if (!debug) {
     daemonize();
   }
 
   /* main loop: probe for idle disks and stop them */
+  lastnow = time(NULL);
+
   for (;;) {
     DISKSTATS tmp;
     FILE *fp;
@@ -170,11 +180,30 @@ int main(int argc, char *argv[])
 
     memset(&tmp, 0x00, sizeof(tmp));
 
+    now = time(NULL);
+    if (now - lastnow > skew_time) {
+      /* we slept too long, assume a suspend event and disks may be spun up */
+      for (it = it_root; it != NULL; it = it->next) {
+        /* reset spin status and timers */
+        if (it->name != NULL) {
+          DISKSTATS *ds;
+          ds = get_diskstats(it->name);
+          ds->spinup = now;
+          ds->last_io = now;
+          ds->spun_down = 0;
+          log_mondisk(ds);
+        }	
+      }
+      log_remonitor();
+    }
+
     while (fgets(buf, sizeof(buf), fp) != NULL) {
       if (sscanf(buf, "%*d %*d %s %*u %*u %u %*u %*u %*u %u %*u %*u %*u %*u",
                  tmp.name, &tmp.reads, &tmp.writes) == 3) {
         DISKSTATS *ds;
-        time_t now = time(NULL);
+
+        now = time(NULL);
+
         const char *s;
 
         /* make sure this is a SCSI disk (sd[a-z]+) without partition number */
@@ -215,6 +244,7 @@ int main(int argc, char *argv[])
               break;
             }
           }
+	  log_mondisk(ds);
 
         } else if (ds->reads == tmp.reads && ds->writes == tmp.writes) {
           if (!ds->spun_down) {
@@ -243,6 +273,7 @@ int main(int argc, char *argv[])
       }
     }
 
+    lastnow = now;
     fclose(fp);
     sleep(sleep_time);
   }
@@ -379,6 +410,52 @@ static void log_spinup(DISKSTATS *ds)
     fclose(fp);
     sleep(1);
     sync();
+  }
+}
+
+/* write a drive spin monitor reset message to the log file */
+static void log_remonitor()
+{
+  FILE *fp;
+  
+  if ((fp = fopen(logfile, "a")) != NULL) {
+    /* Print wakeup to the logfile
+     */
+    time_t now = time(NULL);
+    char tstr[20];
+    char dstr[20];
+
+    strftime(dstr, sizeof(dstr), "%Y-%m-%d", localtime(&now));
+    strftime(tstr, sizeof(tstr), "%H:%M:%S", localtime(&now));
+    fprintf(fp,
+            "date: %s, time: %s: assuming disks spun up after long sleep\n",
+            dstr, tstr);
+    /* Sync to make sure writing to the logfile won't case another
+     * spinup
+     */
+    fclose(fp);
+    sleep(1);
+    sync();
+  }
+}
+
+/* write a drive monitoring message when a new disk is discovered */
+static void log_mondisk(DISKSTATS *ds)
+{
+  FILE *fp;
+  if ((fp = fopen(logfile, "a")) != NULL) {
+    /* Print disk statistic to logfile */
+    time_t now = time(NULL);
+    char tstr[20];
+    char dstr[20];
+
+    strftime(dstr, sizeof(dstr), "%Y-%m-%d", localtime(&now));
+    strftime(tstr, sizeof(tstr), "%H:%M:%S", localtime(&now));
+    fprintf(fp,
+            "date: %s, time: %s, disk: %s, monitoring started with idle timout: %ld\n",
+            dstr, tstr, ds->name, (long) ds->idle_time);
+    fclose(fp);
+    sync(); /* sync without sleep */
   }
 }
 
