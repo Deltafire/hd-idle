@@ -1,3 +1,8 @@
+hd-idle (1.06.01) unstable; urgency=low
+
+ * Added -f foreground option.
+ * Added suspend/sleep detection.
+
 hd-idle (1.06) unstable; urgency=medium
 
   * Fixes to the install target (file permissions, etc.)
