@@ -73,7 +73,7 @@ static void        phex            (const void *p, int len,
 IDLE_TIME *it_root;
 DISKSTATS *ds_root;
 char *logfile = "/dev/null";
-int debug;
+int debug, foreground;
 
 /* main function */
 int main(int argc, char *argv[])
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
   it_root = it;
 
   /* process command line options */
-  while ((opt = getopt(argc, argv, "t:a:i:l:dh")) != -1) {
+  while ((opt = getopt(argc, argv, "t:a:i:l:dfh")) != -1) {
     switch (opt) {
 
     case 't':
@@ -132,8 +132,12 @@ int main(int argc, char *argv[])
       debug = 1;
       break;
 
+    case 'f':
+      foreground = 1;
+      break;
+
     case 'h':
-      printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-d] [-h]\n");
+      printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-d] [-f] [-h]\n");
       return(0);
 
     case ':':
@@ -160,8 +164,8 @@ int main(int argc, char *argv[])
   /* set skew time between scans as a multiple of sleep_time */
   skew_time = sleep_time * 3;
 
-  /* daemonize unless we're running in debug mode */
-  if (!debug) {
+  /* daemonize unless we're running in debug or foreground mode */
+  if (!debug && !foreground) {
     daemonize();
   }
 
