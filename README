@@ -99,7 +99,8 @@ Miscellaneous options:
  -t <disk>               Spin-down the specfified disk immediately and exit.
  -d                      Debug mode. This will prevent hd-idle from
                          becoming a daemon and print debugging info to
-                         stdout/stderr
+                         stdout/stderr.
+ -f                      Foreground mode, no logging to stdout/stderr.
  -h                      Print usage information.
 
 Regarding the parameter "-a":
